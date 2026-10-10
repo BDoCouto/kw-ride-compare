@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KW Ride Compare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column, like a fare card: trip in, ranked fares out, rates tucked below. */
+:root {
+  --bg: #eef2f1;
+  --surface: #ffffff;
+  --ink: #15201e;
+  --muted: #5b6b68;
+  --line: #d3dcda;
+  --accent: #0d6b5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #d8ece7;
+  --warn: #9a5b00;
+  --best: #0d6b5c;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1615; --surface: #172120; --ink: #e5eeec; --muted: #93a5a1; --line: #2a3836;
+    --accent: #4fc2ab; --accent-ink: #06231e; --accent-soft: #1d3a35; --warn: #e0a64a; --best: #4fc2ab;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1615; --surface: #172120; --ink: #e5eeec; --muted: #93a5a1; --line: #2a3836;
+  --accent: #4fc2ab; --accent-ink: #06231e; --accent-soft: #1d3a35; --warn: #e0a64a; --best: #4fc2ab;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--body);
+  padding-inline: 16px; padding-block: 24px 48px;
+}
+.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+h1 { font: 800 clamp(28px, 6vw, 40px)/1.05 var(--display); margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.sub { margin: 6px 0 0; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+.field { position: relative; }
+input[type=text], input[type=number] {
+  width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+}
+input:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trip { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+.stops { display: grid; gap: 12px; min-width: 0; }
+.swap { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; font-size: 18px; margin-bottom: 30px; }
+.suggest { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; list-style: none; padding: 4px; max-height: 260px; overflow-y: auto; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+.suggest li { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.suggest li small { display: block; color: var(--muted); }
+.suggest li:hover, .suggest li[aria-selected=true] { background: var(--accent-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chips span { font-size: 12px; color: var(--muted); align-self: center; margin-right: 2px; }
+.chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.when { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.when .field { min-width: 0; }
+input[type=datetime-local], select {
+  width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px;
+}
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.conditions { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.conditions b { color: var(--ink); font-weight: 600; }
+.surge-tag { background: var(--warn); color: var(--surface); }
+.eta { grid-column: 1 / -1; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.eta b { color: var(--ink); font-weight: 500; }
+.go { margin-top: 14px; width: 100%; font: 600 16px var(--body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 12px; cursor: pointer; }
+.go:disabled { opacity: 0.6; cursor: wait; }
+.route { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.route b { color: var(--ink); font-weight: 500; }
+.note { font-size: 13px; color: var(--warn); margin: 6px 0 0; }
+.results { display: grid; gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.card.best { border-color: var(--best); box-shadow: inset 4px 0 0 var(--best); }
+.name { font: 600 17px var(--display); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.pill { font: 600 11px var(--body); text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.pill.est { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.price { font: 500 22px var(--mono); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.range { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.range .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.open { color: var(--accent); font-weight: 600; text-decoration: none; }
+.open:hover { text-decoration: underline; }
+details.break { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+details.break summary { cursor: pointer; }
+.break table { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.break td { padding: 2px 0; }
+.break td:last-child { text-align: right; }
+h2 { font: 600 18px var(--display); margin: 0 0 8px; }
+.rates summary { font: 600 16px var(--display); cursor: pointer; }
+.rates p { color: var(--muted); font-size: 13px; }
+.tablewrap { overflow-x: auto; }
+.rates table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13px; }
+.rates th { text-align: left; font-weight: 600; color: var(--muted); padding: 6px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.rates td { padding: 4px; }
+.rates td input { padding: 6px 8px; font-family: var(--mono); font-size: 13px; min-width: 64px; }
+.rates .row-actions { display: flex; gap: 8px; margin-top: 10px; }
+.btn2 { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.foot { font-size: 12px; color: var(--muted); }
+.foot a { color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .card { animation: rise .25s ease both; } @keyframes rise { from { transform: translateY(4px); } to { transform: none; } } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>KW Ride Compare</h1>
+    <p class="sub">Estimated fares for Uber, Lyft, taxis and GRT across Kitchener, Waterloo and Cambridge.</p>
+  </header>
+
+  <form class="panel" id="tripForm" autocomplete="off">
+    <div class="trip">
+      <div class="stops">
+        <div class="field">
+          <label for="from">From</label>
+          <input type="text" id="from" placeholder="Address or place" aria-autocomplete="list">
+          <ul class="suggest" id="fromList" hidden></ul>
+        </div>
+        <div class="field">
+          <label for="to">To</label>
+          <input type="text" id="to" placeholder="Address or place" aria-autocomplete="list">
+          <ul class="suggest" id="toList" hidden></ul>
+        </div>
+      </div>
+      <button type="button" class="swap" id="swap" title="Swap pickup and drop-off" aria-label="Swap pickup and drop-off">⇅</button>
+    </div>
+    <div class="chips" id="chips"><span>Quick picks:</span></div>
+    <div class="when">
+      <div class="field">
+        <label for="when">When</label>
+        <input type="datetime-local" id="when">
+      </div>
+      <div class="field">
+        <label for="surgeMode">Surge</label>
+        <select id="surgeMode">
+          <option value="auto">Best guess</option>
+          <option value="1">None (×1.0)</option>
+          <option value="1.2">×1.2</option>
+          <option value="1.5">×1.5</option>
+          <option value="1.8">×1.8</option>
+          <option value="2">×2.0</option>
+          <option value="2.5">×2.5</option>
+        </select>
+      </div>
+    </div>
+    <button class="go" id="go" type="submit">Compare fares</button>
+  </form>
+
+  <section id="summary" class="panel" hidden>
+    <div class="route" id="routeLine"></div>
+    <p class="conditions" id="conditions"></p>
+    <p class="note" id="routeNote" hidden></p>
+  </section>
+
+  <section class="results" id="results" aria-live="polite"></section>
+
+  <details class="panel rates" id="rates">
+    <summary>Edit fare rates</summary>
+    <p>Taxi rates are the Region of Waterloo bylaw rates. Uber and Lyft don't publish local rates, so their numbers are starting estimates. To calibrate them, open each app, get a quote and check the fare breakdown. Changes save in this browser.</p>
+    <div class="tablewrap"><table id="rateTable"></table></div>
+    <div class="row-actions"><button type="button" class="btn2" id="resetRates">Reset to defaults</button></div>
+  </details>
+
+  <p class="foot">Estimates only. Surge pricing, tolls, tips and promotions aren't included, so always confirm the price in the app before you book. Surge and pickup times are guesses from time of day, weather and location. If the app shows a surge, set it in the Surge box. Weather from <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>. Places from <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> and routes from <a href="https://project-osrm.org" target="_blank" rel="noopener">OSRM</a>, using OpenStreetMap data.</p>
+</div>
+
+<script>
+// ---------- Fare model ----------
+// kind "meter": rideshare-style (base + km + min, minimum fare, booking fee, tax).
+// kind "taxi":  regional meter (drop + km + waiting time).
+// kind "flat":  one fixed fare.
+const DEFAULT_RATES = [
+  // Uber: fitted to live upfront quotes, Sat 10 Oct 2026 ~10:20 am (3.6 km → $11.94, 14.4 km → $15.94 UberX).
+  // Upfront prices grow much more slowly with distance than the in-app rate card suggests, so we
+  // fit price to distance only. Fees = $0.40 surcharges + $0.90 insurance & payment, from the rate card.
+  // Comfort and XL quoted at a steady ~1.45× and ~1.83× UberX.
+  { id: "uberx",  name: "UberX",          app: "uber", kind: "meter", base: 8.11,  perKm: 0.327, perMin: 0, booking: 1.30, min: 5.85,  tax: 13, verified: true },
+  { id: "comfort", name: "Uber Comfort",  app: "uber", kind: "meter", base: 11.76, perKm: 0.474, perMin: 0, booking: 1.89, min: 8.48,  tax: 13, verified: true },
+  { id: "uberxl", name: "UberXL",         app: "uber", kind: "meter", base: 14.84, perKm: 0.598, perMin: 0, booking: 2.38, min: 10.71, tax: 13, verified: true },
+  { id: "lyft",   name: "Lyft",           app: "lyft", kind: "meter", base: 2.25, perKm: 0.85, perMin: 0.20, booking: 2.50, min: 7.00, tax: 13, verified: false },
+  { id: "lyftxl", name: "Lyft XL",        app: "lyft", kind: "meter", base: 4.00, perKm: 1.40, perMin: 0.32, booking: 2.50, min: 10.00, tax: 13, verified: false },
+  { id: "taxi",   name: "Licensed taxi",  app: "taxi", kind: "taxi",  base: 4.50, perKm: 2.30, perMin: 0.5833, booking: 0, min: 0, tax: 0, verified: true },
+  { id: "grt",    name: "GRT bus / ION",  app: "grt",  kind: "flat",  base: 4.00, perKm: 0, perMin: 0, booking: 0, min: 0, tax: 0, verified: true },
+];
+// Share of trip time a taxi meter spends on the waiting rate (lights, traffic).
+const TAXI_WAIT_SHARE = 0.15;
+
+// Bump the version when defaults change so old saved rates don't hide them.
+const RATES_KEY = "kwrc-rates-v3";
+function loadRates() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RATES_KEY) || "null");
+    if (Array.isArray(saved) && saved.length === DEFAULT_RATES.length) return saved;
+  } catch (e) {}
+  return structuredClone(DEFAULT_RATES);
+}
+function saveRates() { try { localStorage.setItem(RATES_KEY, JSON.stringify(rates)); } catch (e) {} }
+let rates = loadRates();
+
+// surge: multiplier on the ride portion (base + distance + time) of rideshare fares.
+// guessed: true when surge is our best guess rather than a number the user saw in the app.
+function quote(r, km, min, surge = 1, guessed = false) {
+  const lines = [];
+  let total, low, high;
+  if (r.kind === "flat") {
+    total = r.base; lines.push(["Single fare", r.base]);
+    low = high = total;
+  } else if (r.kind === "taxi") {
+    const waitMin = min * TAXI_WAIT_SHARE;
+    lines.push(["Meter drop", r.base], [`Distance ${km.toFixed(1)} km × $${r.perKm.toFixed(2)}`, km * r.perKm], [`Waiting ~${Math.round(waitMin)} min`, waitMin * r.perMin]);
+    total = r.base + km * r.perKm + waitMin * r.perMin;
+    low = total * 0.92; high = total * 1.12;
+  } else {
+    const plain = r.base + km * r.perKm + min * r.perMin;
+    const ride = plain * surge;
+    const fare = Math.max(ride, r.min);
+    lines.push(["Base", r.base], [`Distance ${km.toFixed(1)} km`, km * r.perKm]);
+    if (r.perMin) lines.push([`Time ${Math.round(min)} min`, min * r.perMin]);
+    if (surge > 1) lines.push([`Surge ×${surge.toFixed(2)}`, ride - plain]);
+    if (fare > ride) lines.push(["Minimum fare top-up", fare - ride]);
+    lines.push(["Fees (surcharges, insurance, payment)", r.booking]);
+    const pre = fare + r.booking;
+    if (r.tax) lines.push([`HST ${r.tax}%`, pre * r.tax / 100]);
+    total = pre * (1 + r.tax / 100);
+    // A guessed surge is uncertain both ways; a surge read off the app is not.
+    low = total * (guessed ? 0.85 : 0.93); high = total * (guessed ? 1.3 : 1.08);
+  }
+  return { total, low, high, lines };
+}
+
+// ---------- Demand: surge guess and pickup wait ----------
+// Heuristics, not live data. Tune them as you compare against real quotes.
+function isWeekendNight(date) {
+  const d = date.getDay(), h = date.getHours();
+  return ((d === 5 || d === 6) && h >= 22) || ((d === 6 || d === 0) && h < 3);
+}
+function surgeGuess(date, wx) {
+  const d = date.getDay(), h = date.getHours(), weekday = d >= 1 && d <= 5;
+  let s = 1; const why = [];
+  if (isWeekendNight(date)) { s += 0.4; why.push("weekend night"); }
+  else if (weekday && h >= 7 && h < 9) { s += 0.15; why.push("morning rush"); }
+  else if (weekday && h >= 16 && h < 18) { s += 0.2; why.push("evening rush"); }
+  if (wx && wx.heavy) { s += 0.3; why.push(wx.label.toLowerCase()); }
+  else if (wx && wx.wet) { s += 0.15; why.push(wx.label.toLowerCase()); }
+  return { surge: Math.min(Math.round(s * 20) / 20, 2), why };
+}
+// Busy areas where drivers tend to wait; pickups near them are faster.
+const HUBS = [
+  { lat: 43.4723, lon: -80.5449 }, { lat: 43.4643, lon: -80.5204 }, { lat: 43.4505, lon: -80.4895 },
+  { lat: 43.4246, lon: -80.4396 }, { lat: 43.4977, lon: -80.5280 }, { lat: 43.3600, lon: -80.3140 },
+  { lat: 43.3925, lon: -80.3205 },
+];
+function pickupWait(pt, date, wx, r) {
+  const near = Math.min(...HUBS.map(h => haversineKm(pt, h)));
+  let eta = near < 2 ? 4 : near < 5 ? 6 : 10;
+  const h = date.getHours();
+  if (h >= 1 && h < 6) eta += 4;              // few drivers out
+  if (isWeekendNight(date)) eta += 2;         // drivers busy
+  if (wx && wx.heavy) eta += 4; else if (wx && wx.wet) eta += 2;
+  if (r.id.endsWith("xl")) eta += 6;          // fewer large vehicles (Uber quoted 10–13 min vs 4–6 for UberX)
+  if (r.kind === "taxi") eta = eta * 1.6 + 4; // dispatch is slower
+  return [Math.max(2, Math.round(eta * 0.75)), Math.round(eta * 1.35)];
+}
+
+// ---------- Weather (Open-Meteo, free, no key) ----------
+let wxData = null;
+async function weatherAt(date) {
+  const ahead = (date - Date.now()) / 864e5;
+  if (ahead > 6.5 || ahead < -1) return null;
+  try {
+    if (!wxData) {
+      const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=43.45&longitude=-80.49&hourly=precipitation,snowfall&timezone=America%2FToronto&past_days=1&forecast_days=7");
+      wxData = (await res.json()).hourly;
+    }
+    const p = n => String(n).padStart(2, "0");
+    const key = `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:00`;
+    const i = wxData.time.indexOf(key);
+    if (i < 0) return null;
+    const rain = wxData.precipitation[i], snow = wxData.snowfall[i];
+    const heavy = rain >= 2.5 || snow >= 0.5, wet = rain >= 0.3 || snow > 0;
+    const label = snow > 0 ? (heavy ? "Heavy snow" : "Snow") : heavy ? "Heavy rain" : wet ? "Rain" : "Dry";
+    return { wet, heavy, label };
+  } catch (e) { return null; }
+}
+
+// ---------- Places ----------
+// Region of Waterloo bounding box (W, S, E, N) for search.
+const BBOX = [-80.78, 43.28, -80.15, 43.62];
+const QUICK = [
+  { label: "UWaterloo",           lat: 43.4723, lon: -80.5449 },
+  { label: "Laurier",             lat: 43.4738, lon: -80.5275 },
+  { label: "Uptown Waterloo",     lat: 43.4643, lon: -80.5204 },
+  { label: "Downtown Kitchener",  lat: 43.4505, lon: -80.4895 },
+  { label: "Fairview Park Mall",  lat: 43.4246, lon: -80.4396 },
+  { label: "Conestoga Mall",      lat: 43.4977, lon: -80.5280 },
+  { label: "Conestoga College",   lat: 43.3897, lon: -80.4050 },
+  { label: "YKF Airport",         lat: 43.4608, lon: -80.3786 },
+  { label: "Downtown Galt",       lat: 43.3600, lon: -80.3140 },
+];
+const stops = { from: null, to: null };
+
+function placeLabel(p) {
+  const pr = p.properties;
+  const main = pr.name || [pr.housenumber, pr.street].filter(Boolean).join(" ") || pr.city || "Unnamed place";
+  const rest = [pr.name && pr.street ? [pr.housenumber, pr.street].filter(Boolean).join(" ") : "", pr.city || pr.district].filter(Boolean).join(", ");
+  return { main, rest };
+}
+
+async function searchPlaces(q) {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en&bbox=${BBOX.join(",")}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("search failed");
+  const data = await res.json();
+  return data.features.map(f => {
+    const { main, rest } = placeLabel(f);
+    return { label: main, detail: rest, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] };
+  });
+}
+
+function wireField(key) {
+  const input = document.getElementById(key);
+  const list = document.getElementById(key + "List");
+  let timer, items = [], active = -1;
+  const close = () => { list.hidden = true; active = -1; };
+  const pick = it => { stops[key] = it; input.value = it.label; close(); };
+  const render = () => {
+    list.innerHTML = "";
+    items.forEach((it, i) => {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", i === active);
+      li.innerHTML = `${esc(it.label)}${it.detail ? `<small>${esc(it.detail)}</small>` : ""}`;
+      li.addEventListener("mousedown", e => { e.preventDefault(); pick(it); });
+      list.appendChild(li);
+    });
+    list.hidden = items.length === 0;
+  };
+  input.addEventListener("input", () => {
+    stops[key] = null;
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 3) { items = []; render(); return; }
+    timer = setTimeout(async () => {
+      try { items = await searchPlaces(q); } catch (e) { items = []; }
+      active = -1; render();
+    }, 300);
+  });
+  input.addEventListener("keydown", e => {
+    if (list.hidden) return;
+    if (e.key === "ArrowDown") { active = Math.min(active + 1, items.length - 1); render(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { active = Math.max(active - 1, 0); render(); e.preventDefault(); }
+    else if (e.key === "Enter" && active >= 0) { pick(items[active]); e.preventDefault(); }
+    else if (e.key === "Escape") close();
+  });
+  input.addEventListener("blur", () => setTimeout(close, 100));
+  return pick;
+}
+const pickFrom = wireField("from");
+const pickTo = wireField("to");
+
+const chips = document.getElementById("chips");
+QUICK.forEach(q => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "chip"; b.textContent = q.label;
+  b.title = "Fill the next empty stop with " + q.label;
+  // Fills pickup first; once both are set, a tap replaces the destination.
+  b.addEventListener("click", () => (stops.from ? pickTo(q) : pickFrom(q)));
+  chips.appendChild(b);
+});
+
+document.getElementById("swap").addEventListener("click", () => {
+  const f = stops.from, t = stops.to;
+  const fv = document.getElementById("from").value, tv = document.getElementById("to").value;
+  stops.from = t; stops.to = f;
+  document.getElementById("from").value = tv; document.getElementById("to").value = fv;
+});
+
+// ---------- Routing ----------
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+async function route(a, b) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code !== "Ok") throw new Error(data.code);
+    // OSRM's demo server tends to underestimate city driving time; pad it a little.
+    return { km: data.routes[0].distance / 1000, min: data.routes[0].duration / 60 * 1.15, live: true };
+  } catch (e) {
+    const km = haversineKm(a, b) * 1.35;
+    return { km, min: km / 38 * 60 + 3, live: false };
+  }
+}
+
+// ---------- App links ----------
+function appLink(r, a, b) {
+  if (r.app === "uber") {
+    const p = new URLSearchParams({ action: "setPickup", "pickup[latitude]": a.lat, "pickup[longitude]": a.lon, "pickup[nickname]": a.label, "dropoff[latitude]": b.lat, "dropoff[longitude]": b.lon, "dropoff[nickname]": b.label });
+    return { href: "https://m.uber.com/ul/?" + p, text: "Open in Uber" };
+  }
+  if (r.app === "lyft") {
+    const p = new URLSearchParams({ id: r.id === "lyftxl" ? "lyft_plus" : "lyft", "pickup[latitude]": a.lat, "pickup[longitude]": a.lon, "destination[latitude]": b.lat, "destination[longitude]": b.lon });
+    return { href: "https://lyft.com/ride?" + p, text: "Open in Lyft" };
+  }
+  if (r.app === "grt") return { href: "https://www.grt.ca/en/schedules-maps/plan-your-trip.aspx", text: "Plan on GRT" };
+  return { href: "https://www.regionofwaterloo.ca/government-and-council/by-laws-tickets-and-court/by-laws-and-enforcement/taxi-services/taxi-by-law-overview/", text: "Taxi rules" };
+}
+
+// ---------- Render ----------
+const money = n => "$" + n.toFixed(2);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let last = null;
+
+function tripDate() {
+  const v = document.getElementById("when").value;
+  const d = v ? new Date(v) : new Date();
+  return isNaN(d) ? new Date() : d;
+}
+function setWhenNow() {
+  const d = new Date(); d.setSeconds(0, 0);
+  const p = n => String(n).padStart(2, "0");
+  document.getElementById("when").value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderResults() {
+  if (!last) return;
+  const { a, b, km, min, live, wx } = last;
+  const date = tripDate();
+  const mode = document.getElementById("surgeMode").value;
+  const guess = surgeGuess(date, wx);
+  const guessed = mode === "auto";
+  const surge = guessed ? guess.surge : parseFloat(mode);
+  const whenText = date.toLocaleString("en-CA", { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const surgeText = guessed
+    ? (surge > 1 ? `Surge guess <b>×${+surge.toFixed(2)}</b> (${guess.why.join(", ")})` : "No surge expected")
+    : `Surge set to <b>×${+surge.toFixed(2)}</b>`;
+  document.getElementById("conditions").innerHTML =
+    `<b>${esc(whenText)}</b> · ${wx ? esc(wx.label) : "Weather unknown"} · ${surgeText}`;
+  document.getElementById("summary").hidden = false;
+  document.getElementById("routeLine").innerHTML =
+    `<span><b>${esc(a.label)}</b> → <b>${esc(b.label)}</b></span><span><b>${km.toFixed(1)}</b> km</span><span>~<b>${Math.round(min)}</b> min drive</span>`;
+  const note = document.getElementById("routeNote");
+  note.hidden = live;
+  note.textContent = live ? "" : "Couldn't reach the routing service, so distance is estimated from a straight line. Fares may be less accurate.";
+
+  const quotes = rates.map(r => ({ r, q: quote(r, km, min, r.kind === "meter" ? surge : 1, guessed) })).sort((x, y) => x.q.total - y.q.total);
+  const cheapestCar = quotes.find(x => x.r.kind !== "flat");
+  const out = document.getElementById("results");
+  out.innerHTML = "";
+  quotes.forEach(({ r, q }) => {
+    const link = appLink(r, a, b);
+    const best = cheapestCar && r.id === cheapestCar.r.id;
+    const el = document.createElement("article");
+    el.className = "card" + (best ? " best" : "");
+    const rangeText = q.low === q.high ? "Flat fare" : `Likely <span class="mono">${money(q.low)}–${money(q.high)}</span>`;
+    let etaText = "Check the trip planner for bus times";
+    if (r.kind !== "flat") {
+      const [w1, w2] = pickupWait(a, date, wx, r);
+      const ride = Math.round(min);
+      etaText = `Pickup in <b>${w1}–${w2} min</b> · ride ${ride} min · there in about <b>${w1 + ride}–${w2 + ride} min</b>`;
+    }
+    el.innerHTML = `
+      <div class="name">${esc(r.name)}
+        ${best ? '<span class="pill">Cheapest ride</span>' : ""}
+        ${r.kind === "meter" && surge > 1 ? `<span class="pill surge-tag">Surge ×${+surge.toFixed(2)}</span>` : ""}
+        ${r.kind === "flat" ? '<span class="pill est">Transit</span>' : r.verified ? "" : '<span class="pill est">Rates estimated</span>'}
+      </div>
+      <div class="price">${money(q.total)}</div>
+      <div class="range"><span>${rangeText}</span><a class="open" href="${link.href}" target="_blank" rel="noopener">${link.text} ↗</a></div>
+      <div class="eta">${etaText}</div>
+      <details class="break"><summary>Fare breakdown</summary>
+        <table>${q.lines.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${money(v)}</td></tr>`).join("")}
+        <tr><td><b>Estimate</b></td><td><b>${money(q.total)}</b></td></tr></table>
+        ${r.kind === "flat" ? "<p>Travel time depends on your route and schedule. Use the GRT trip planner.</p>" : ""}
+      </details>`;
+    out.appendChild(el);
+  });
+}
+
+async function compare(a, b) {
+  const go = document.getElementById("go");
+  go.disabled = true; go.textContent = "Getting route…";
+  const [r, wx] = await Promise.all([route(a, b), weatherAt(tripDate())]);
+  last = { a, b, ...r, wx };
+  renderResults();
+  go.disabled = false; go.textContent = "Compare fares";
+}
+
+document.getElementById("tripForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  for (const key of ["from", "to"]) {
+    if (stops[key]) continue;
+    const q = document.getElementById(key).value.trim();
+    if (!q) { document.getElementById(key).focus(); return; }
+    try {
+      const found = await searchPlaces(q);
+      if (!found.length) throw new Error();
+      key === "from" ? pickFrom(found[0]) : pickTo(found[0]);
+    } catch (err) {
+      const out = document.getElementById("results");
+      out.innerHTML = `<p class="panel">Couldn't find "${esc(q)}" in Waterloo Region. Try a fuller address or pick a place from the suggestions.</p>`;
+      return;
+    }
+  }
+  compare(stops.from, stops.to);
+});
+
+// ---------- Rate editor ----------
+const FIELDS = [["base", "Base / drop"], ["perKm", "Per km"], ["perMin", "Per min"], ["booking", "Fees"], ["min", "Min fare"], ["tax", "Tax %"]];
+function renderRateTable() {
+  const t = document.getElementById("rateTable");
+  t.innerHTML = `<tr><th>Service</th>${FIELDS.map(f => `<th>${f[1]}</th>`).join("")}</tr>` +
+    rates.map((r, i) => `<tr><td>${esc(r.name)}</td>${FIELDS.map(([k]) => {
+      const disabled = r.kind === "flat" && k !== "base";
+      return `<td><input type="number" step="0.01" min="0" id="rate-${r.id}-${k}" data-i="${i}" data-k="${k}" value="${r[k]}" ${disabled ? "disabled" : ""} aria-label="${esc(r.name)} ${k}"></td>`;
+    }).join("")}</tr>`).join("");
+}
+document.getElementById("rateTable").addEventListener("input", e => {
+  const el = e.target; if (!el.dataset.k) return;
+  const v = parseFloat(el.value);
+  if (isNaN(v)) return;
+  rates[el.dataset.i][el.dataset.k] = v;
+  saveRates(); renderResults();
+});
+document.getElementById("resetRates").addEventListener("click", () => {
+  rates = structuredClone(DEFAULT_RATES); saveRates(); renderRateTable(); renderResults();
+});
+renderRateTable();
+
+// Changing the time refetches weather; changing surge just re-prices.
+document.getElementById("when").addEventListener("change", async () => {
+  if (!last) return;
+  last.wx = await weatherAt(tripDate());
+  renderResults();
+});
+document.getElementById("surgeMode").addEventListener("change", renderResults);
+
+// ---------- Example trip on load ----------
+setWhenNow();
+pickFrom(QUICK[0]);
+pickTo(QUICK[4]);
+compare(stops.from, stops.to);
+</script>
+</body>
+</html>
