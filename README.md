@@ -10,12 +10,13 @@ It's a single static page (`index.html`) with no build step and no API keys.
 
 | Service | Source | Confidence |
 |---|---|---|
-| UberX, Comfort, XL | Fitted to live Uber quotes, 10 Oct 2026 | Good, but based on only two trips |
+| UberX | About $7.50 + $1.07/km including HST, off-peak, Oct 2026 (±8%) | Good for trips up to ~10 km; untested on longer ones |
+| Comfort, XL | Fixed multiples of UberX (1.45× and 1.83×), from live quotes on 10 Oct 2026 | Fair |
 | Lyft, Lyft XL | Rate-card estimates | Low: probably overestimates longer trips |
 | Licensed taxi | Region of Waterloo Taxi-Cab By-law 16-044 ($4.50 drop, $2.30/km, $35/h waiting) | High |
 | GRT bus / ION | GRT single-ride fare ($4.00) | High |
 
-**Surge** and **pickup times** are rule-of-thumb guesses based on time of day, day of week, weather and distance to busy areas. If Uber or Lyft shows a surge, enter it in the Surge box.
+**Surge** and **pickup times** are rule-of-thumb guesses based on time of day, day of week, weather and distance to busy areas. The weekday-morning surge is +5% and the typical pickup wait is about 3–6.5 minutes. Weekend-night, evening-rush and weather surges are still untested guesses. If Uber or Lyft shows a surge, enter it in the Surge box.
 
 You can edit every rate in the page under **Edit fare rates**. Edits are saved in your browser only.
 

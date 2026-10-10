@@ -205,13 +205,13 @@ h2 { font: 600 18px var(--display); margin: 0 0 8px; }
 // kind "taxi":  regional meter (drop + km + waiting time).
 // kind "flat":  one fixed fare.
 const DEFAULT_RATES = [
-  // Uber: fitted to live upfront quotes, Sat 10 Oct 2026 ~10:20 am (3.6 km → $11.94, 14.4 km → $15.94 UberX).
-  // Upfront prices grow much more slowly with distance than the in-app rate card suggests, so we
-  // fit price to distance only. Fees = $0.40 surcharges + $0.90 insurance & payment, from the rate card.
-  // Comfort and XL quoted at a steady ~1.45× and ~1.83× UberX.
-  { id: "uberx",  name: "UberX",          app: "uber", kind: "meter", base: 8.11,  perKm: 0.327, perMin: 0, booking: 1.30, min: 5.85,  tax: 13, verified: true },
-  { id: "comfort", name: "Uber Comfort",  app: "uber", kind: "meter", base: 11.76, perKm: 0.474, perMin: 0, booking: 1.89, min: 8.48,  tax: 13, verified: true },
-  { id: "uberxl", name: "UberXL",         app: "uber", kind: "meter", base: 14.84, perKm: 0.598, perMin: 0, booking: 2.38, min: 10.71, tax: 13, verified: true },
+  // UberX: off-peak fare ≈ $7.48 + $1.073/km incl. HST (±8%), Oct 2026.
+  // Upfront prices don't follow the in-app rate card, so we fit price to distance only.
+  // Fees = $0.40 surcharges + $0.90 insurance & payment, from the rate card.
+  // Comfort and XL quoted at a steady ~1.45× and ~1.83× UberX (live quotes, 10 Oct 2026).
+  { id: "uberx",  name: "UberX",          app: "uber", kind: "meter", base: 5.32, perKm: 0.950, perMin: 0, booking: 1.30, min: 5.85,  tax: 13, verified: true },
+  { id: "comfort", name: "Uber Comfort",  app: "uber", kind: "meter", base: 7.71, perKm: 1.378, perMin: 0, booking: 1.89, min: 8.48,  tax: 13, verified: true },
+  { id: "uberxl", name: "UberXL",         app: "uber", kind: "meter", base: 9.74, perKm: 1.739, perMin: 0, booking: 2.38, min: 10.71, tax: 13, verified: true },
   { id: "lyft",   name: "Lyft",           app: "lyft", kind: "meter", base: 2.25, perKm: 0.85, perMin: 0.20, booking: 2.50, min: 7.00, tax: 13, verified: false },
   { id: "lyftxl", name: "Lyft XL",        app: "lyft", kind: "meter", base: 4.00, perKm: 1.40, perMin: 0.32, booking: 2.50, min: 10.00, tax: 13, verified: false },
   { id: "taxi",   name: "Licensed taxi",  app: "taxi", kind: "taxi",  base: 4.50, perKm: 2.30, perMin: 0.5833, booking: 0, min: 0, tax: 0, verified: true },
@@ -221,7 +221,7 @@ const DEFAULT_RATES = [
 const TAXI_WAIT_SHARE = 0.15;
 
 // Bump the version when defaults change so old saved rates don't hide them.
-const RATES_KEY = "kwrc-rates-v3";
+const RATES_KEY = "kwrc-rates-v4";
 function loadRates() {
   try {
     const saved = JSON.parse(localStorage.getItem(RATES_KEY) || "null");
@@ -273,7 +273,7 @@ function surgeGuess(date, wx) {
   const d = date.getDay(), h = date.getHours(), weekday = d >= 1 && d <= 5;
   let s = 1; const why = [];
   if (isWeekendNight(date)) { s += 0.4; why.push("weekend night"); }
-  else if (weekday && h >= 7 && h < 9) { s += 0.15; why.push("morning rush"); }
+  else if (weekday && h >= 7 && h < 9) { s += 0.05; why.push("morning rush"); }
   else if (weekday && h >= 16 && h < 18) { s += 0.2; why.push("evening rush"); }
   if (wx && wx.heavy) { s += 0.3; why.push(wx.label.toLowerCase()); }
   else if (wx && wx.wet) { s += 0.15; why.push(wx.label.toLowerCase()); }
@@ -287,14 +287,15 @@ const HUBS = [
 ];
 function pickupWait(pt, date, wx, r) {
   const near = Math.min(...HUBS.map(h => haversineKm(pt, h)));
-  let eta = near < 2 ? 4 : near < 5 ? 6 : 10;
+  // UberX pickups: median ~4.6 min, middle half ~3–6.5 min.
+  let eta = near < 2 ? 4 : near < 5 ? 5 : 10;
   const h = date.getHours();
   if (h >= 1 && h < 6) eta += 4;              // few drivers out
   if (isWeekendNight(date)) eta += 2;         // drivers busy
   if (wx && wx.heavy) eta += 4; else if (wx && wx.wet) eta += 2;
   if (r.id.endsWith("xl")) eta += 6;          // fewer large vehicles (Uber quoted 10–13 min vs 4–6 for UberX)
   if (r.kind === "taxi") eta = eta * 1.6 + 4; // dispatch is slower
-  return [Math.max(2, Math.round(eta * 0.75)), Math.round(eta * 1.35)];
+  return [Math.max(2, Math.round(eta * 0.65)), Math.round(eta * 1.4)];
 }
 
 // ---------- Weather (Open-Meteo, free, no key) ----------
