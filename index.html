@@ -48,7 +48,7 @@ body {
 h1 { font: 800 clamp(28px, 6vw, 40px)/1.05 var(--display); margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
 .sub { margin: 6px 0 0; color: var(--muted); }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+label, .lbl { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
 .field { position: relative; }
 input[type=text], input[type=number] {
   width: 100%; font: inherit; color: var(--ink); background: var(--bg);
@@ -67,7 +67,18 @@ input:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visibl
 .chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
 .chip:hover { border-color: var(--accent); }
 .when { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-.when .field { min-width: 0; }
+.when .field { min-width: 0; display: grid; gap: 6px; align-content: start; }
+.when .lbl { margin-bottom: -2px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg); }
+.seg button { font: inherit; font-weight: 500; border: 0; border-radius: 7px; padding: 6px 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.chip.mine { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.chip.add { border-style: dashed; color: var(--muted); }
+.place-rows { display: grid; gap: 12px; }
+.place-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; }
+.place-row .name-cell { font-weight: 600; }
+.place-row .field { min-width: 0; }
+.place-row .saved { font-size: 12px; color: var(--muted); margin-top: 2px; }
 input[type=datetime-local], select {
   width: 100%; font: inherit; color: var(--ink); background: var(--bg);
   border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px;
@@ -137,11 +148,16 @@ h2 { font: 600 18px var(--display); margin: 0 0 8px; }
       </div>
       <button type="button" class="swap" id="swap" title="Swap pickup and drop-off" aria-label="Swap pickup and drop-off">⇅</button>
     </div>
+    <div class="chips" id="myChips"><span>Your places:</span></div>
     <div class="chips" id="chips"><span>Quick picks:</span></div>
     <div class="when">
       <div class="field">
-        <label for="when">When</label>
-        <input type="datetime-local" id="when">
+        <span class="lbl" id="whenLbl">When</span>
+        <div class="seg" role="group" aria-labelledby="whenLbl">
+          <button type="button" id="whenNow" aria-pressed="true">Now</button>
+          <button type="button" id="whenLater" aria-pressed="false">Later</button>
+        </div>
+        <input type="datetime-local" id="when" aria-label="Trip date and time" hidden>
       </div>
       <div class="field">
         <label for="surgeMode">Surge</label>
@@ -166,6 +182,12 @@ h2 { font: 600 18px var(--display); margin: 0 0 8px; }
   </section>
 
   <section class="results" id="results" aria-live="polite"></section>
+
+  <details class="panel rates" id="places">
+    <summary>Your places</summary>
+    <p>Save the addresses you use most. They're stored only in this browser, so they never appear on the public site. Set them once on each device you use.</p>
+    <div class="place-rows" id="placeRows"></div>
+  </details>
 
   <details class="panel rates" id="rates">
     <summary>Edit fare rates</summary>
@@ -296,6 +318,9 @@ async function weatherAt(date) {
   } catch (e) { return null; }
 }
 
+const money = n => "$" + n.toFixed(2);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 // ---------- Places ----------
 // Region of Waterloo bounding box (W, S, E, N) for search.
 const BBOX = [-80.78, 43.28, -80.15, 43.62];
@@ -330,12 +355,11 @@ async function searchPlaces(q) {
   });
 }
 
-function wireField(key) {
-  const input = document.getElementById(key);
-  const list = document.getElementById(key + "List");
+// Adds address suggestions to an input. onPick gets the chosen place; onEdit runs when the text changes.
+function wireSearch(input, list, onPick, onEdit = () => {}) {
   let timer, items = [], active = -1;
   const close = () => { list.hidden = true; active = -1; };
-  const pick = it => { stops[key] = it; input.value = it.label; close(); };
+  const pick = it => { input.value = it.label; close(); onPick(it); };
   const render = () => {
     list.innerHTML = "";
     items.forEach((it, i) => {
@@ -349,7 +373,7 @@ function wireField(key) {
     list.hidden = items.length === 0;
   };
   input.addEventListener("input", () => {
-    stops[key] = null;
+    onEdit();
     clearTimeout(timer);
     const q = input.value.trim();
     if (q.length < 3) { items = []; render(); return; }
@@ -368,18 +392,81 @@ function wireField(key) {
   input.addEventListener("blur", () => setTimeout(close, 100));
   return pick;
 }
-const pickFrom = wireField("from");
-const pickTo = wireField("to");
+function wireStop(key) {
+  return wireSearch(document.getElementById(key), document.getElementById(key + "List"),
+    it => { stops[key] = it; }, () => { stops[key] = null; });
+}
+const pickFrom = wireStop("from");
+const pickTo = wireStop("to");
 
-const chips = document.getElementById("chips");
-QUICK.forEach(q => {
+// Fills pickup first; once both are set, a tap replaces the destination.
+function chipButton(place, text, cls = "chip") {
   const b = document.createElement("button");
-  b.type = "button"; b.className = "chip"; b.textContent = q.label;
-  b.title = "Fill the next empty stop with " + q.label;
-  // Fills pickup first; once both are set, a tap replaces the destination.
-  b.addEventListener("click", () => (stops.from ? pickTo(q) : pickFrom(q)));
-  chips.appendChild(b);
-});
+  b.type = "button"; b.className = cls; b.textContent = text;
+  b.title = "Fill the next empty stop with " + text;
+  b.addEventListener("click", () => (stops.from ? pickTo(place) : pickFrom(place)));
+  return b;
+}
+const chips = document.getElementById("chips");
+QUICK.forEach(q => chips.appendChild(chipButton(q, q.label)));
+
+// ---------- Your places (saved in this browser only, never in the page source) ----------
+const MY_PLACES = [["home", "Home"], ["work", "Work"], ["school", "School"]];
+const PLACES_KEY = "kwrc-places";
+function loadPlaces() {
+  try { return JSON.parse(localStorage.getItem(PLACES_KEY) || "{}") || {}; } catch (e) { return {}; }
+}
+let myPlaces = loadPlaces();
+function savePlaces() { try { localStorage.setItem(PLACES_KEY, JSON.stringify(myPlaces)); } catch (e) {} }
+// The chip fills the stop with the place's name (e.g. "Home") so Uber shows it as the nickname.
+const asStop = (key, name) => ({ ...myPlaces[key], label: name });
+
+function renderMyChips() {
+  const row = document.getElementById("myChips");
+  row.querySelectorAll("button").forEach(b => b.remove());
+  const set = MY_PLACES.filter(([k]) => myPlaces[k]);
+  set.forEach(([k, name]) => row.appendChild(chipButton(asStop(k, name), name, "chip mine")));
+  if (set.length < MY_PLACES.length) {
+    const add = document.createElement("button");
+    add.type = "button"; add.className = "chip add";
+    add.textContent = set.length ? "+ Add more" : "+ Add home, work, school";
+    add.addEventListener("click", () => {
+      const d = document.getElementById("places");
+      d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    row.appendChild(add);
+  }
+}
+function renderPlaceRows() {
+  const wrap = document.getElementById("placeRows");
+  wrap.innerHTML = "";
+  MY_PLACES.forEach(([k, name]) => {
+    const p = myPlaces[k];
+    const row = document.createElement("div");
+    row.className = "place-row";
+    row.innerHTML = `
+      <span class="name-cell">${name}</span>
+      <div class="field">
+        <input type="text" id="place-${k}" placeholder="Search for an address" aria-label="${name} address" value="${p ? esc(p.address) : ""}">
+        <ul class="suggest" hidden></ul>
+        <div class="saved">${p ? "Saved" : "Not set"}</div>
+      </div>
+      <button type="button" class="btn2" ${p ? "" : "hidden"}>Remove</button>`;
+    const input = row.querySelector("input");
+    wireSearch(input, row.querySelector(".suggest"), it => {
+      const address = [it.label, it.detail].filter(Boolean).join(", ");
+      myPlaces[k] = { address, lat: it.lat, lon: it.lon };
+      input.value = address;
+      savePlaces(); renderPlaceRows(); renderMyChips();
+    });
+    row.querySelector("button").addEventListener("click", () => {
+      delete myPlaces[k]; savePlaces(); renderPlaceRows(); renderMyChips();
+    });
+    wrap.appendChild(row);
+  });
+}
+renderMyChips();
+renderPlaceRows();
 
 document.getElementById("swap").addEventListener("click", () => {
   const f = stops.from, t = stops.to;
@@ -424,11 +511,11 @@ function appLink(r, a, b) {
 }
 
 // ---------- Render ----------
-const money = n => "$" + n.toFixed(2);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let last = null;
 
+let whenNow = true;
 function tripDate() {
+  if (whenNow) return new Date();
   const v = document.getElementById("when").value;
   const d = v ? new Date(v) : new Date();
   return isNaN(d) ? new Date() : d;
@@ -545,17 +632,33 @@ document.getElementById("resetRates").addEventListener("click", () => {
 renderRateTable();
 
 // Changing the time refetches weather; changing surge just re-prices.
-document.getElementById("when").addEventListener("change", async () => {
+async function timeChanged() {
   if (!last) return;
   last.wx = await weatherAt(tripDate());
   renderResults();
-});
+}
+function setWhenMode(now) {
+  whenNow = now;
+  document.getElementById("whenNow").setAttribute("aria-pressed", now);
+  document.getElementById("whenLater").setAttribute("aria-pressed", !now);
+  const input = document.getElementById("when");
+  input.hidden = now;
+  if (!now) { if (!input.value) setWhenNow(); input.focus(); }
+  timeChanged();
+}
+document.getElementById("whenNow").addEventListener("click", () => setWhenMode(true));
+document.getElementById("whenLater").addEventListener("click", () => setWhenMode(false));
+document.getElementById("when").addEventListener("change", timeChanged);
 document.getElementById("surgeMode").addEventListener("change", renderResults);
 
-// ---------- Example trip on load ----------
-setWhenNow();
-pickFrom(QUICK[0]);
-pickTo(QUICK[4]);
+// ---------- Starting trip: Home → Work if saved, otherwise an example ----------
+if (myPlaces.home && myPlaces.work) {
+  pickFrom(asStop("home", "Home"));
+  pickTo(asStop("work", "Work"));
+} else {
+  pickFrom(QUICK[0]);
+  pickTo(QUICK[4]);
+}
 compare(stops.from, stops.to);
 </script>
 </body>
