@@ -274,7 +274,7 @@ function surgeGuess(date, wx) {
   let s = 1; const why = [];
   if (isWeekendNight(date)) { s += 0.4; why.push("weekend night"); }
   else if (weekday && h >= 7 && h < 9) { s += 0.05; why.push("morning rush"); }
-  else if (weekday && h >= 16 && h < 18) { s += 0.2; why.push("evening rush"); }
+  else if (weekday && h >= 16 && h < 18) { s += 0.15; why.push("evening rush"); }
   if (wx && wx.heavy) { s += 0.3; why.push(wx.label.toLowerCase()); }
   else if (wx && wx.wet) { s += 0.15; why.push(wx.label.toLowerCase()); }
   return { surge: Math.min(Math.round(s * 20) / 20, 2), why };

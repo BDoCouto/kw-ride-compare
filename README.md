@@ -16,7 +16,7 @@ It's a single static page (`index.html`) with no build step and no API keys.
 | Licensed taxi | Region of Waterloo Taxi-Cab By-law 16-044 ($4.50 drop, $2.30/km, $35/h waiting) | High |
 | GRT bus / ION | GRT single-ride fare ($4.00) | High |
 
-**Surge** and **pickup times** are rule-of-thumb guesses based on time of day, day of week, weather and distance to busy areas. The weekday-morning surge is +5% and the typical pickup wait is about 3–6.5 minutes. Weekend-night, evening-rush and weather surges are still untested guesses. If Uber or Lyft shows a surge, enter it in the Surge box.
+**Surge** and **pickup times** are rule-of-thumb guesses based on time of day, day of week, weather and distance to busy areas. The weekday surge is +5% in the morning rush and +15% in the evening rush, and the typical pickup wait is about 3–6.5 minutes. Weekend-night and weather surges are still untested guesses. If Uber or Lyft shows a surge, enter it in the Surge box.
 
 You can edit every rate in the page under **Edit fare rates**. Edits are saved in your browser only.
 
